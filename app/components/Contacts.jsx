@@ -1,106 +1,66 @@
-import React, { useContext, useEffect, useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { View, Text, FlatList, StyleSheet, ActivityIndicator, TextInput, Image, TouchableOpacity } from 'react-native';
-import * as Contacts from 'expo-contacts';
 import { useNavigation } from '@react-navigation/native';
-import { collection, query, where, getDocs } from 'firebase/firestore';
-import { db, auth } from '../../configs/FirebaseConfig';
-import { doc, setDoc } from 'firebase/firestore';
+import { collection, query, where, getDocs, doc, setDoc } from 'firebase/firestore';
+import { db } from '../../configs/FirebaseConfig';
 import { useAppContext } from '../AppProvider';
 
 const ContactsScreen = () => {
   const navigation = useNavigation();
-  const { contacts, setContacts } = useAppContext();
+  const { contacts, contactLoading, userDetails, permissionStatus } = useAppContext();
   const [filteredContacts, setFilteredContacts] = useState([]);
-  const [permissionStatus, setPermissionStatus] = useState(null);
-  const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
 
   useEffect(() => {
-    const getContacts = async () => {
-      const { status } = await Contacts.requestPermissionsAsync();
-      setPermissionStatus(status);
-
-      if (status === 'granted') {
-        const { data } = await Contacts.getContactsAsync({
-          fields: [Contacts.Fields.PhoneNumbers, Contacts.Fields.Emails],
-        });
-
-        const filteredContacts = data.filter(
-          (contact) =>
-            Array.isArray(contact.phoneNumbers) && contact.phoneNumbers.length > 0
-        );
-
-        if (filteredContacts.length > 0) {
-          setContacts(filteredContacts);
-          setFilteredContacts(filteredContacts);
-        }
-      }
-
-      setLoading(false);
-    };
-
-    getContacts();
-  }, []);
-
-  const handleSearch = (query) => {
-    setSearchQuery(query);
-
-    if (query) {
+    if (!searchQuery) {
+      setFilteredContacts(contacts);
+    } else {
+      // Filter contacts based on the search query
       const filtered = contacts.filter((contact) =>
-        contact.name.toLowerCase().includes(query.toLowerCase())
+        contact.name.toLowerCase().includes(searchQuery.toLowerCase())
       );
       setFilteredContacts(filtered);
-    } else {
-      setFilteredContacts(contacts);
     }
-  };
+  }, [searchQuery, contacts]);
 
+  // Function to get or create chat ID
   const getOrCreateChatId = async (contact) => {
-    const currentUserId = auth.currentUser.uid;
-    const contactPhoneNumber = contact.phoneNumbers[0].number;  // Get contact's phone number
-  
-    // Normalize phone numbers for consistent chatId
-    const normalizedCurrentUserPhoneNumber = normalizePhoneNumber(auth.currentUser.phoneNumber);
-    const normalizedContactPhoneNumber = normalizePhoneNumber(contactPhoneNumber);
-  
-    // Sort by normalized phone numbers for consistent chatId
-    const chatParticipants = [normalizedCurrentUserPhoneNumber, normalizedContactPhoneNumber].sort();
+    const currentUserPhoneNumber = userDetails.phone;
+    const contactPhoneNumber = contact.phoneNumbers[0].number;
+
+    const chatParticipants = [currentUserPhoneNumber, contactPhoneNumber].sort();
     const chatId = `${chatParticipants[0]}_${chatParticipants[1]}`;
-  
+
     const chatRef = collection(db, 'chats');
     const chatSnapshot = await getDocs(query(chatRef, where('__name__', '==', chatId)));
-  
+
     if (!chatSnapshot.empty) {
       return chatId;
     } else {
-      // Store both normalized phone numbers in the participants array
       await setDoc(doc(db, 'chats', chatId), {
-        participants: [normalizedCurrentUserPhoneNumber, normalizedContactPhoneNumber],
+        participants: [currentUserPhoneNumber, contactPhoneNumber],
       });
       return chatId;
     }
   };
 
-  const normalizePhoneNumber = (number) => {
-    return number.replace(/\D/g, '');  // Remove all non-numeric characters
-  };
-
+  // Handle contact press
   const handleContactPress = async (contact) => {
     try {
-      const chatId = await getOrCreateChatId(contact);  // Call the function to get or create the chatId
+      const chatId = await getOrCreateChatId(contact);
 
-      // Once the chatId is retrieved, navigate to the Chat screen
       if (chatId) {
-        navigation.navigate('Chat', { chatId, contact });
+        const participantName = contact.name; 
+        navigation.navigate('Chat', { chatId, participantName }); 
       } else {
-        console.log("Unable to retrieve or create chatId.");
+        console.log('Unable to retrieve or create chatId.');
       }
     } catch (error) {
-      console.log("Error handling contact press:", error);
+      console.log('Error handling contact press:', error);
     }
   };
 
-  if (loading) {
+  if (contactLoading) {
     return (
       <View style={styles.container}>
         <ActivityIndicator size="large" color="#00f" />
@@ -111,7 +71,9 @@ const ContactsScreen = () => {
   if (permissionStatus !== 'granted') {
     return (
       <View style={styles.container}>
-        <Text style={styles.noAccessText}>No access to contacts. Please grant permission in your device settings.</Text>
+        <Text style={styles.noAccessText}>
+          No access to contacts. Please grant permission in your device settings.
+        </Text>
       </View>
     );
   }
@@ -122,7 +84,7 @@ const ContactsScreen = () => {
         style={styles.searchBar}
         placeholder="Search contacts..."
         value={searchQuery}
-        onChangeText={handleSearch}
+        onChangeText={setSearchQuery}
       />
       <Text style={styles.totalContactsText}>
         Total Contacts: {filteredContacts.length}
@@ -151,12 +113,12 @@ const styles = StyleSheet.create({
   container: { flex: 1, padding: 20, backgroundColor: '#fff' },
   searchBar: { height: 40, borderColor: '#ccc', borderWidth: 1, borderRadius: 10, paddingHorizontal: 15, marginBottom: 20 },
   totalContactsText: { alignSelf: 'flex-end', fontSize: 16, color: '#333', marginBottom: 10, textAlign: 'center', fontWeight: 'bold' },
-  contactCard: { backgroundColor: '#fff', padding: 15, marginBottom: 10, shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.1, shadowRadius: 4, elevation: 2, flexDirection: 'row', alignItems: 'center' },
-  avatar: { width: 50, height: 50, borderRadius: 25, backgroundColor: '#ccc', marginRight: 15 },
-  contactName: { fontSize: 18, fontWeight: '600', color: '#333' },
-  contactNumber: { fontSize: 16, color: '#555', marginTop: 5 },
-  noAccessText: { fontSize: 16, color: '#f00', textAlign: 'center' },
-  noContactsText: { fontSize: 16, color: '#555', textAlign: 'center', marginTop: 20 }
+  contactCard: { backgroundColor: '#fff', padding: 20, marginBottom: 10, flexDirection: 'row', alignItems: 'center', borderRadius: 10, elevation: 2 },
+  contactName: { fontSize: 16, fontWeight: 'bold', color: '#333' },
+  contactNumber: { fontSize: 14, color: '#555' },
+  noContactsText: { textAlign: 'center', fontSize: 16, color: '#555' },
+  noAccessText: { textAlign: 'center', fontSize: 16, color: 'red' },
+  avatar: { width: 40, height: 40, borderRadius: 20, marginRight: 15 },
 });
 
 export default ContactsScreen;

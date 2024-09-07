@@ -1,58 +1,15 @@
-import React, { useState, useEffect } from "react";
-import {
-  View,
-  Text,
-  StyleSheet,
-  TouchableOpacity,
-  Image,
-  ActivityIndicator,
-} from "react-native";
-import { db } from "../../configs/FirebaseConfig";
-import { doc, getDoc } from "firebase/firestore";
-import { getAuth } from "firebase/auth";
+import React from "react";
+import { View, Text, StyleSheet, TouchableOpacity, Image } from "react-native";
 import { useNavigation } from "@react-navigation/native";
-import LoadingIndicator from '../components/LoadingIndicator';
+import { useAppContext } from "../AppProvider";
+import LoadingIndicator from "../components/LoadingIndicator";
 
 export default function Profile({ username }) {
-  const [email, setEmail] = useState("");
-  const [password, setPassword] = useState("");
-  const [phoneNumber, setPhoneNumber] = useState("");
-  const [loading, setLoading] = useState(false);
+  const { userDetails, loading, logout } = useAppContext();
   const navigation = useNavigation();
 
-  useEffect(() => {
-    const fetchUserData = async () => {
-      setLoading(true);
-      try {
-        const auth = getAuth();
-        const user = auth.currentUser; // Get current user
-        if (user) {
-          const userDocRef = doc(db, "users", user.uid); // Use UID
-          const userDoc = await getDoc(userDocRef);
-          if (userDoc.exists()) {
-            const userData = userDoc.data();
-            setEmail(userData.email || "");
-            setPhoneNumber(userData.phoneNumber || "");
-            setAddress(userData.address || "");
-            setPassword(userData.password || "");
-          }
-        } else {
-          console.error("No user is signed in.");
-        }
-      } catch (error) {
-        console.error("Error fetching user data:", error);
-      } finally {
-        setLoading(false);
-      }
-    };
-
-    fetchUserData();
-  }, []);
-
   if (loading) {
-    return (
-      <LoadingIndicator/>
-    );
+    return <LoadingIndicator />;
   }
 
   return (
@@ -65,7 +22,9 @@ export default function Profile({ username }) {
           />
         </View>
         <View style={styles.profileInfo}>
-          <Text style={styles.profileName}>{username || "User Name"}</Text>
+          <Text style={styles.profileName}>
+            {username || userDetails.username || "User Name"}
+          </Text>
           <Text style={styles.profileQuote}>
             {"A great chat application isn't just about sending messages; it's about creating seamless connections, fostering conversations, and making every user feel heard."}
           </Text>
@@ -79,7 +38,7 @@ export default function Profile({ username }) {
           </View>
           <View style={styles.menuTextContainer}>
             <Text style={styles.menuTextQ}>Phone Number </Text>
-            <Text style={styles.menuText}>{phoneNumber}</Text>
+            <Text style={styles.menuText}>{userDetails.phone || ""}</Text>
           </View>
         </TouchableOpacity>
 
@@ -89,7 +48,7 @@ export default function Profile({ username }) {
           </View>
           <View style={styles.menuTextContainer}>
             <Text style={styles.menuTextQ}>Email </Text>
-            <Text style={styles.menuText}>{email}</Text>
+            <Text style={styles.menuText}>{userDetails.email || ""}</Text>
           </View>
         </TouchableOpacity>
         <TouchableOpacity
@@ -110,7 +69,9 @@ export default function Profile({ username }) {
           </View>
           <View style={styles.menuTextContainer}>
             <Text style={styles.menuTextQ}>Password </Text>
-            <Text style={styles.menuText}>{'*'.repeat(password.length)}</Text>
+            <Text style={styles.menuText}>
+              {"*".repeat(userDetails.password?.length || 8)}
+            </Text>
           </View>
         </TouchableOpacity>
 
@@ -121,6 +82,15 @@ export default function Profile({ username }) {
           <View style={styles.menuTextContainer}>
             <Text style={styles.menuTextQ}>Language </Text>
             <Text style={styles.menuText}>English</Text>
+          </View>
+        </TouchableOpacity>
+
+        <TouchableOpacity onPress={logout} style={styles.menuItem}>
+          <View style={styles.menuIcon}>
+            <Text style={styles.menuIconText}>🚪</Text>
+          </View>
+          <View style={styles.menuTextContainer}>
+            <Text style={styles.menuTextQ}>LogOut </Text>
           </View>
         </TouchableOpacity>
       </View>

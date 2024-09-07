@@ -2,9 +2,10 @@ import React, { useState } from "react";
 import { View, Text, TextInput, TouchableOpacity, StyleSheet, Alert } from "react-native";
 import { createUserWithEmailAndPassword, signInWithEmailAndPassword } from "firebase/auth";
 import { auth, db } from '../../configs/FirebaseConfig';
-import {doc, setDoc, getDoc} from 'firebase/firestore';
+import { doc, setDoc, getDoc } from 'firebase/firestore';
 import { useNavigation } from "@react-navigation/native";
 import LoadingIndicator from './LoadingIndicator';
+import { useAppContext } from '../AppProvider'; // Import useAppContext hook
 
 export default function Index() {
   const [isSignUp, setIsSignUp] = useState(false);
@@ -16,13 +17,12 @@ export default function Index() {
   );
 }
 
-
-// signIn code
+// SignIn code
 function SignIn({ onToggle }) {
   const navigation = useNavigation();
+  const { login } = useAppContext(); // Get login function from context
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
-  const [username, setUsername] = useState("");
   const [loading, setLoading] = useState(false);
 
   const handleSignIn = () => {
@@ -35,32 +35,19 @@ function SignIn({ onToggle }) {
   
     signInWithEmailAndPassword(auth, email, password)
       .then(async (userCredential) => {
-        const user = userCredential.user;
-  
-        // Fetching user's name from Firestore
-        const userDoc = await getDoc(doc(db, "users", user.uid));
-        if (userDoc.exists()) {
-          const userName = userDoc.data().name;
-          setUsername(userName);
-          
-          // Hide the loading indicator
-          setLoading(false);
-          
-          // Alert and navigate using the fetched username
-          Alert.alert("Sign-In Successful", `Welcome ${userName}`);
-          navigation.navigate('MainPage', { username: userName });
-        } else {
-          // Handle case where user document does not exist
-          setLoading(false);
-          Alert.alert("Error", "User data not found");
-        }
+        await login(userCredential); // Call login function from context
+
+        // Hide the loading indicator
+        setLoading(false);
+        
+        // Alert and navigate
+        Alert.alert("Sign-In Successful", `Welcome ${userCredential.user.email}`);
+        navigation.navigate('MainPage');
       })
       .catch((error) => {
-        const errorCode = error.code;
-        const errorMessage = error.message;
         setLoading(false); // Hide the loading indicator on error
-        Alert.alert("Error", errorMessage);
-        console.error("Error signing in:", errorCode, errorMessage);
+        Alert.alert("Error", error.message);
+        console.error("Error signing in:", error);
       });
   };  
 
@@ -94,10 +81,10 @@ function SignIn({ onToggle }) {
   );
 }
 
-
-// signUp code
+// SignUp code
 function SignUp({ onToggle }) {
   const navigation = useNavigation();
+  const { login } = useAppContext(); // Get login function from context
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [phone, setPhone] = useState("");
@@ -123,20 +110,19 @@ function SignUp({ onToggle }) {
         name: name,
         email: email,
         phone: phone,
-        password: password,
         createdAt: new Date(),
       });
+
+      await login(userCredential); // Call login function from context
+
       navigation.navigate("MainPage");
       Alert.alert("Sign-Up Successful", `Welcome ${name}`);
     })
     .catch((error) => {
-      const errorCode = error.code;
-      const errorMessage = error.message;
-      Alert.alert("Error", errorMessage);
-      console.error("Error signing up:", errorCode, errorMessage);
+      Alert.alert("Error", error.message);
+      console.error("Error signing up:", error);
     });
-};
-
+  };
 
   return (
     <View style={styles.container}>
@@ -156,11 +142,11 @@ function SignUp({ onToggle }) {
         autoCapitalize="none"
       />
       <TextInput
-      style={styles.input}
-      placeholder="Phone Number"
-      value={phone}
-      onChangeText={setPhone}
-      keyboardType="number-pad"
+        style={styles.input}
+        placeholder="Phone Number"
+        value={phone}
+        onChangeText={setPhone}
+        keyboardType="number-pad"
       />
       <TextInput
         style={styles.input}
@@ -187,6 +173,7 @@ function SignUp({ onToggle }) {
     </View>
   );
 }
+
 
 const styles = StyleSheet.create({
   container: {

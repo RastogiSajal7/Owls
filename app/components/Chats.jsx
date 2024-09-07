@@ -1,107 +1,135 @@
-import React, { useEffect, useState } from 'react';
-import { View, Text, FlatList, StyleSheet, ActivityIndicator, TouchableOpacity } from 'react-native';
-import { collection, getDocs, query, orderBy, limit } from 'firebase/firestore';
-import { auth, db } from '../../configs/FirebaseConfig';
-import { onSnapshot } from 'firebase/firestore';
-import { useNavigation } from '@react-navigation/native';
-import { useAppContext } from '../AppProvider';
+import React, { useEffect, useState } from "react";
+import {
+  View,
+  Text,
+  ActivityIndicator,
+  FlatList,
+  StyleSheet,
+  TouchableOpacity,
+} from "react-native";
+import { collection, onSnapshot } from "firebase/firestore";
+import { db } from "../../configs/FirebaseConfig";
+import { useAppContext } from "../AppProvider";
+import { useNavigation } from "@react-navigation/native";
+import { Ionicons } from "@expo/vector-icons";
 
 const Chats = () => {
   const [chats, setChats] = useState([]);
-  const [loading, setLoading] = useState(true);
-  const { contacts } = useAppContext(); 
-  const currentUserId = auth.currentUser.uid;
+  const [loading, setLoading] = useState(false);
+  const { userDetails, contacts } = useAppContext();
   const navigation = useNavigation();
-
-  useEffect(() => {
-    const fetchChats = async () => {
-      setLoading(true);
-      try {
-        const q = query(collection(db, 'chats'));  // Create a query to listen to the 'chats' collection
-        const unsubscribe = onSnapshot(q, (querySnapshot) => {
-          const chatList = [];
-  
-          querySnapshot.forEach((doc) => {
-            const chatData = doc.data();
-            if (chatData.participants.includes(currentUserId)) {
-              let lastMessage = '';
-  
-              // Fetch last message
-              const messagesRef = collection(db, 'chats', doc.id, 'messages');
-              const lastMessageQuery = query(messagesRef, orderBy('createdAt', 'desc'), limit(1));
-              getDocs(lastMessageQuery).then((lastMessageSnapshot) => {
-                if (!lastMessageSnapshot.empty) {
-                  lastMessage = lastMessageSnapshot.docs[0].data().text;
-                }
-  
-                const contactPhoneNumber = chatData.participants.find(participant => participant !== currentUserId);
-  
-                // Normalize and match phone numbers with contacts from context
-                const contact = contacts.find(c =>
-                  c.phoneNumbers &&
-                  normalizePhoneNumber(c.phoneNumbers[0].number) === normalizePhoneNumber(contactPhoneNumber)
-                );
-  
-                const contactName = contact ? contact.name : 'Unknown';
-  
-                chatList.push({
-                  id: doc.id,
-                  lastMessage,
-                  contactName,
-                  contactPhoneNumber,
-                });
-  
-                setChats(chatList);
-              });
-            }
-          });
-        });
-  
-        // Cleanup the listener on component unmount
-        return () => unsubscribe();
-  
-      } catch (error) {
-        console.error('Error fetching chats:', error);
-      } finally {
-        setLoading(false);
-      }
-    };
-  
-    if (contacts.length > 0) {  // Only fetch chats if contacts are available
-      fetchChats();
-    }
-  }, [contacts]);
+  const currentUserPhoneNumber = userDetails.phone;
 
   const normalizePhoneNumber = (number) => {
-    return number.replace(/\D/g, '');  // Remove all non-numeric characters
+    return number.replace(/\D/g, ""); 
   };
 
-  const handleChatPress = (chatId, contactName, contactPhoneNumber) => {
-    navigation.navigate('Chat', { chatId, contact: { name: contactName, phoneNumber: contactPhoneNumber } });
+  const getContactName = (phoneNumber) => {
+    const normalizedPhoneNumber = normalizePhoneNumber(phoneNumber);
+    const contact = contacts.find(
+      (c) =>
+        c.phoneNumbers &&
+        c.phoneNumbers.some(
+          (num) => normalizePhoneNumber(num.number) === normalizedPhoneNumber
+        )
+    );
+    return contact ? contact.name : "Unknown";
+  };
+
+  const fetchChats = () => {
+    setLoading(true);
+    const unsubscribe = onSnapshot(
+      collection(db, "chats"),
+      (querySnapshot) => {
+        const chatsData = querySnapshot.docs.map((doc) => {
+          const chatData = doc.data();
+          const participants = chatData.participants || [];
+
+          // Check if the user is a participant
+          if (participants.includes(currentUserPhoneNumber)) {
+            const participantNames = participants
+              .filter((phoneNumber) => phoneNumber !== currentUserPhoneNumber)
+              .map((phoneNumber) => {
+                const name = getContactName(phoneNumber);
+                return name;
+              })
+              .join(", ");
+
+            return {
+              id: doc.id,
+              ...chatData,
+              participants: chatData.participants,
+              participantNames: participantNames || "Unknown",
+            };
+          }
+          return null; // Exclude chats where user is not a participant
+        }).filter((chat) => chat !== null);
+
+        setChats(chatsData);
+        setLoading(false);
+      },
+      (error) => {
+        console.error("Error fetching chats:", error);
+        setLoading(false);
+      }
+    );
+
+    return unsubscribe; // Return the unsubscribe function
+  };
+
+  useEffect(() => {
+    const unsubscribe = fetchChats(); // Set up the snapshot listener
+
+    return () => {
+      unsubscribe(); // Clean up the listener on component unmount
+    };
+  }, [userDetails]); // Re-fetch if userDetails change
+
+  const handleChatPress = (chat) => {
+    const participantName = chat.participantNames || "Unknown"; // Get the name of the participant
+  
+    navigation.navigate("Chat", { chatId: chat.id, participantName }); // Navigate to Chat screen with chatId and participantName
   };
   
+
   return (
     <View style={styles.container}>
-      <FlatList
-        data={chats}
-        keyExtractor={(item) => item.id}
-        renderItem={({ item }) => (
-          <TouchableOpacity onPress={() => handleChatPress(item.id, item.contactName, item.contactPhoneNumber)}>
-            <View style={styles.chatItem}>
-              <Text style={styles.chatName}>{item.contactName}</Text>
-              <Text style={styles.lastMessage}>{item.lastMessage}</Text>
-            </View>
-          </TouchableOpacity>
-        )}
-      />
+      <View style={{ flexDirection: "row", justifyContent: "space-between" }}>
+        <Text style={styles.title}>Chat History</Text>
+        <Ionicons name="refresh-sharp" size={25} onPress={fetchChats} />
+      </View>
+      {loading ? (
+        <ActivityIndicator size="large" color="#0000ff" />
+      ) : chats.length > 0 ? (
+        <FlatList
+          data={chats}
+          keyExtractor={(item) => item.id}
+          renderItem={({ item }) => (
+            <TouchableOpacity
+              onPress={() => handleChatPress(item)}
+              style={styles.chatContainer}
+            >
+              <Text>{item.participantNames || "No participants"}</Text>
+            </TouchableOpacity>
+          )}
+        />
+      ) : (
+        <Text>No chats available</Text>
+      )}
     </View>
   );
-}  
+};
+
 const styles = StyleSheet.create({
-  container: { flex: 1, padding: 20 },
-  chatItem: { padding: 20, borderBottomWidth: 1, borderBottomColor: '#ccc' },
-  chatName: { fontSize: 18, fontWeight: 'bold' },
-  lastMessage: { fontSize: 16, color: '#666' },
+  container: { padding: 20 },
+  title: { fontSize: 18, fontWeight: "bold" },
+  chatContainer: {
+    marginTop: 20,
+    padding: 10,
+    backgroundColor: "#ffd759",
+    borderRadius: 5,
+  },
+  lastMessage: { fontSize: 14, color: "gray", marginTop: 5 },
 });
 
 export default Chats;
