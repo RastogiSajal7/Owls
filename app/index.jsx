@@ -19,7 +19,7 @@ export default function Index() {
           <Stack.Screen name="Home" component={Home} options={{ headerShown: false }} />
           <Stack.Screen name="SignUp" component={SignUp} options={{ headerShown: false }} />
           <Stack.Screen name="MainPage" component={BottomNavigation} options={{ headerShown: false }} />
-          <Stack.Screen name='Chat' component={ChatScreen} options={{ headerShown: false }} />
+          <Stack.Screen name='Chat' component={ChatScreen} options={{ headerShown: true }} />
         </Stack.Navigator>
       </GestureHandlerRootView>
     </AppProvider>
