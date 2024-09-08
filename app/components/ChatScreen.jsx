@@ -17,6 +17,8 @@ import {
   onSnapshot,
   orderBy,
   query,
+  deleteDoc,
+  writeBatch,
 } from "firebase/firestore";
 import { db, auth } from "../../configs/FirebaseConfig";
 import { Ionicons } from "@expo/vector-icons";
@@ -26,29 +28,34 @@ const ChatScreen = ({ route, navigation }) => {
   const currentUserId = auth.currentUser.uid;
   const [messages, setMessages] = useState([]);
   const [newMessage, setNewMessage] = useState("");
-  const [contactName, setContactName] = useState(participantName || "Unknown");
   const [lastTap, setLastTap] = useState(null);
   const [loading, setLoading] = useState(true);
   const [inputHeight, setInputHeight] = useState(40);
+  const [selectedMessages, setSelectedMessages] = useState([]);
 
   useEffect(() => {
     navigation.setOptions({
       headerStyle: {
-        backgroundColor: '#fff',
+        backgroundColor: "#fff",
       },
-      headerTitle: () => (
-        <View style={styles.header}>
-          <Image
-            source={
-              participantProfilePic
-                ? { uri: participantProfilePic }
-                : require("../../assets/images/profile.gif")
-            }
-            style={styles.avatar}
-          />
-          <Text style={styles.contactName}>{participantName || "Unknown"}</Text>
-        </View>
-      ),
+      headerTitle: () =>
+        selectedMessages.length > 0 ? (
+          <TouchableOpacity onPress={handleDeleteSelectedMessages}>
+            <Ionicons name="trash" size={28} color="#0a0a0a" />
+          </TouchableOpacity>
+        ) : (
+          <View style={styles.header}>
+            <Image
+              source={
+                participantProfilePic
+                  ? { uri: participantProfilePic }
+                  : require("../../assets/images/profile.gif")
+              }
+              style={styles.avatar}
+            />
+            <Text style={styles.contactName}>{participantName || "Unknown"}</Text>
+          </View>
+        ),
     });
 
     if (chatId) {
@@ -58,7 +65,7 @@ const ChatScreen = ({ route, navigation }) => {
       );
 
       const unsubscribe = onSnapshot(q, (snapshot) => {
-        const msgs = snapshot.docs.map(doc => ({
+        const msgs = snapshot.docs.map((doc) => ({
           id: doc.id,
           ...doc.data(),
         }));
@@ -68,7 +75,7 @@ const ChatScreen = ({ route, navigation }) => {
 
       return () => unsubscribe();
     }
-  }, [chatId, participantName, participantProfilePic]);
+  }, [chatId, participantName, participantProfilePic, selectedMessages]);
 
   const handleSend = async () => {
     if (newMessage.trim()) {
@@ -90,7 +97,7 @@ const ChatScreen = ({ route, navigation }) => {
     const now = Date.now();
     const DOUBLE_PRESS_DELAY = 300;
 
-    if (lastTap && (now - lastTap) < DOUBLE_PRESS_DELAY) {
+    if (lastTap && now - lastTap < DOUBLE_PRESS_DELAY) {
       try {
         const messageRef = doc(db, "chats", chatId, "messages", messageId);
         await updateDoc(messageRef, {
@@ -104,14 +111,44 @@ const ChatScreen = ({ route, navigation }) => {
     }
   };
 
+  const handleLongPress = (messageId) => {
+    if (selectedMessages.includes(messageId)) {
+      setSelectedMessages((prev) => prev.filter((id) => id !== messageId));
+    } else {
+      setSelectedMessages((prev) => [...prev, messageId]);
+    }
+  };
+
+  const handleDeleteSelectedMessages = async () => {
+    try {
+      const batch = writeBatch(db);
+
+      selectedMessages.forEach((messageId) => {
+        const message = messages.find((msg) => msg.id === messageId);
+
+        if (message && message.sender === currentUserId) {
+          const messageRef = doc(db, "chats", chatId, "messages", messageId);
+          batch.delete(messageRef);
+        }
+      });
+
+      await batch.commit();
+      setSelectedMessages([]); // Clear selection after deletion
+    } catch (error) {
+      console.error("Error deleting messages:", error);
+    }
+  };
+
   const renderMessage = ({ item }) => {
     const isCurrentUser = item.sender === currentUserId;
     const likedByCurrentUser = item.likedByCurrentUser || false;
+    const isSelected = selectedMessages.includes(item.id);
 
     return (
       <TouchableOpacity
         style={{ paddingRight: 5 }}
         onPress={() => handleDoubleTap(item.id, likedByCurrentUser)}
+        onLongPress={() => handleLongPress(item.id)}
         activeOpacity={1}
       >
         <View
@@ -120,6 +157,7 @@ const ChatScreen = ({ route, navigation }) => {
             isCurrentUser
               ? styles.currentUserMessage
               : styles.otherUserMessage,
+            isSelected && styles.selectedMessage,
           ]}
         >
           <Text style={styles.messageText}>{item.text}</Text>
@@ -176,7 +214,7 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     padding: 10,
-    backgroundColor: "#1e1e2c",
+    backgroundColor: "#0a0a0a",
   },
   header: {
     flexDirection: "row",
@@ -198,7 +236,7 @@ const styles = StyleSheet.create({
     borderRadius: 10,
     maxWidth: "80%",
     marginRight: 10,
-    overflow: 'visible',
+    overflow: "visible",
   },
   currentUserMessage: {
     backgroundColor: "#d1f7c4",
@@ -209,6 +247,9 @@ const styles = StyleSheet.create({
     backgroundColor: "#ffd759",
     alignSelf: "flex-start",
     borderTopLeftRadius: 0,
+  },
+  selectedMessage: {
+    backgroundColor: "rgba(0, 128, 128, 0.5)", // Highlight color for selected messages
   },
   messageText: {
     fontSize: 16,
@@ -243,12 +284,15 @@ const styles = StyleSheet.create({
     flex: 1,
     borderColor: "#ccc",
     borderWidth: 1,
-    borderRadius: 10,
+    borderRadius: 20,
     paddingHorizontal: 10,
     textAlignVertical: "top",
     paddingTop: 10,
     paddingBottom: 10,
-    backgroundColor: '#fff',
+    backgroundColor: "#fff",
+    fontSize: 16,
+    fontFamily: "Roboto",
+    fontWeight: "bold",
   },
   sendButton: {
     height: 40,

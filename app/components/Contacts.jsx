@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { View, Text, FlatList, StyleSheet, ActivityIndicator, TextInput, Image, TouchableOpacity } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
+import { Ionicons } from '@expo/vector-icons';
 import { collection, query, where, getDocs, doc, setDoc } from 'firebase/firestore';
 import { db } from '../../configs/FirebaseConfig';
 import { useAppContext } from '../AppProvider';
@@ -86,9 +87,12 @@ const ContactsScreen = () => {
         value={searchQuery}
         onChangeText={setSearchQuery}
       />
-      <Text style={styles.totalContactsText}>
-        Total Contacts: {filteredContacts.length}
-      </Text>
+      <View style={styles.totalContactsText} >
+        <Text style={{fontSize: 15, color: '#333', fontWeight: 'bold'}}>
+          Total Contacts: {filteredContacts.length}
+        </Text>
+        <Ionicons name="refresh-sharp" size={22}  />
+      </View>
       <FlatList
         data={filteredContacts}
         keyExtractor={(item) => item.id}
@@ -112,7 +116,7 @@ const ContactsScreen = () => {
 const styles = StyleSheet.create({
   container: { flex: 1, padding: 20, backgroundColor: '#fff' },
   searchBar: { height: 40, borderColor: '#ccc', borderWidth: 1, borderRadius: 10, paddingHorizontal: 15, marginBottom: 20 },
-  totalContactsText: { alignSelf: 'flex-end', fontSize: 16, color: '#333', marginBottom: 10, textAlign: 'center', fontWeight: 'bold' },
+  totalContactsText: { flexDirection: 'row', alignSelf: 'flex-end', marginBottom: 10, gap: 20 },
   contactCard: { backgroundColor: '#fff', padding: 20, marginBottom: 10, flexDirection: 'row', alignItems: 'center', borderRadius: 10, elevation: 2 },
   contactName: { fontSize: 16, fontWeight: 'bold', color: '#333' },
   contactNumber: { fontSize: 14, color: '#555' },

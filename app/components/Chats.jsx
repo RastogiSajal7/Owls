@@ -35,37 +35,43 @@ const Chats = () => {
     const unsubscribe = onSnapshot(
       collection(db, "chats"),
       (querySnapshot) => {
-        const chatsData = querySnapshot.docs.map((doc) => {
+        const chatPromises = querySnapshot.docs.map((doc) => {
           const chatData = doc.data();
           const participants = chatData.participants || [];
-
+  
           if (participants.includes(currentUserPhoneNumber)) {
             const participantNames = participants
               .filter((phoneNumber) => phoneNumber !== currentUserPhoneNumber)
               .map((phoneNumber) => getContactName(phoneNumber))
               .join(", ");
-
+  
             const messagesRef = collection(db, "chats", doc.id, "messages");
             const lastMessageQuery = query(messagesRef, orderBy("timestamp", "desc"), limit(1));
-
+  
+            // Return a promise that resolves to a chat object with the last message
             return new Promise((resolve) => {
               onSnapshot(lastMessageQuery, (messageSnapshot) => {
-                const lastMessage = messageSnapshot.docs[0]?.data() || { text: "No messages yet." };
+                const lastMessageDoc = messageSnapshot.docs[0];
+                const lastMessage = lastMessageDoc ? lastMessageDoc.data() : { text: "No messages yet.", timestamp: null };
+  
                 resolve({
                   id: doc.id,
                   ...chatData,
                   participants: chatData.participants,
                   participantNames: participantNames || "Unknown",
                   lastMessage: lastMessage.text,
+                  lastMessageTimestamp: lastMessage.timestamp || new Date(0), // Use a default timestamp if there's no message
                 });
               });
             });
           }
           return null;
         });
-
-        Promise.all(chatsData).then((results) => {
-          const filteredChats = results.filter((chat) => chat !== null);
+  
+        // Wait for all promises to resolve
+        Promise.all(chatPromises).then((results) => {
+          // Filter out any null values and sort the chats based on last message timestamp
+          const filteredChats = results.filter((chat) => chat !== null).sort((a, b) => b.lastMessageTimestamp - a.lastMessageTimestamp);
           setChats(filteredChats);
           setLoading(false);
         });
@@ -75,9 +81,10 @@ const Chats = () => {
         setLoading(false);
       }
     );
-
+  
     return unsubscribe;
   };
+  
 
   useEffect(() => {
     const unsubscribe = fetchChats();
@@ -124,7 +131,7 @@ const Chats = () => {
               onPress={() => handleChatPress(item)}
               style={styles.chatContainer}
             >
-              <Image source={require('../../assets/images/avatar.png')} style={styles.avatar} />
+              <Image source={require('../../assets/images/profile.gif')} style={styles.avatar} />
               <View style={styles.chatInfo}>
                 <Text style={styles.participantNames}>{item.participantNames || "No participants"}</Text>
                 <Text style={styles.lastMessage} numberOfLines={1} ellipsizeMode="tail">
