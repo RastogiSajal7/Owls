@@ -26,10 +26,11 @@ const Home = () => {
 
   const handleSwipe = (event) => {
     const { translationY } = event.nativeEvent;
-    if (translationY < -50) {  // Swipe upwards threshold
+    if (translationY < -50) {
       navigation.navigate('SignUp');
     }
   };
+  
 
   return (
     <PanGestureHandler onGestureEvent={handleSwipe}>

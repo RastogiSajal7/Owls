@@ -1,8 +1,8 @@
 import React from 'react';
-import { AppProvider } from './AppProvider';
-import { createNativeStackNavigator } from "@react-navigation/native-stack";
+import AppProvider from './AppProvider';
+import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import Home from './components/Home';
-import { GestureHandlerRootView } from "react-native-gesture-handler";
+import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { SafeAreaView, StyleSheet, StatusBar } from 'react-native';
 import BottomNavigation from './components/BottomNavigation';
 import SignUp from './components/SignUp';
@@ -19,7 +19,7 @@ export default function Index() {
           <Stack.Screen name="Home" component={Home} options={{ headerShown: false }} />
           <Stack.Screen name="SignUp" component={SignUp} options={{ headerShown: false }} />
           <Stack.Screen name="MainPage" component={BottomNavigation} options={{ headerShown: false }} />
-          <Stack.Screen name='Chat' component={ChatScreen} options={{ headerShown: true }} />
+          <Stack.Screen name="Chat" component={ChatScreen} options={{ headerShown: true }} />
         </Stack.Navigator>
       </GestureHandlerRootView>
     </AppProvider>

@@ -1,35 +1,36 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
-import * as Contacts from 'expo-contacts'; // Import contacts from Expo
-import { auth } from '../configs/FirebaseConfig'; // Firebase authentication instance
+import { View, ActivityIndicator } from 'react-native';
+import * as Contacts from 'expo-contacts';
+import { onAuthStateChanged } from 'firebase/auth';
 import { doc, getDoc } from 'firebase/firestore';
-import { db } from '../configs/FirebaseConfig'; // Firebase Firestore instance
-import { onAuthStateChanged } from 'firebase/auth'; // Firebase Auth state change listener
-import { useNavigation } from '@react-navigation/native';
+import { useNavigation } from 'expo-router';
+import { auth, db } from '../configs/FirebaseConfig';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
 const AppContext = createContext();
 
 export const useAppContext = () => useContext(AppContext);
 
-export const AppProvider = ({ children }) => {
+const AppProvider = ({ children }) => {
   const navigation = useNavigation();
 
-  // User state
+  // State variables
   const [user, setUser] = useState(null);
   const [userDetails, setUserDetails] = useState({});
   const [loading, setLoading] = useState(true);
-
-  // Contacts state
   const [contacts, setContacts] = useState([]);
   const [contactLoading, setContactLoading] = useState(true);
   const [permissionStatus, setPermissionStatus] = useState(null);
+  const [sosContacts, setSosContacts] = useState([]);
+  const [isInitializing, setIsInitializing] = useState(true); // New state to track initialization
 
-  // Function to normalize phone numbers
+  // Normalize phone number
   const normalizePhoneNumber = (number) => {
-    const cleanedNumber = number.replace(/\D/g, '');  // Remove all non-numeric characters
-    return cleanedNumber.slice(-10);  // Return only the last 10 digits
+    const cleanedNumber = number.replace(/\D/g, ''); // Remove all non-numeric characters
+    return cleanedNumber.slice(-10); // Return only the last 10 digits
   };
 
-  // Fetch user details function
+  // Fetch user details
   const fetchUserDetails = async () => {
     setLoading(true);
     try {
@@ -48,7 +49,7 @@ export const AppProvider = ({ children }) => {
     }
   };
 
-  // Fetch contacts function
+  // Fetch contacts
   const fetchContacts = async () => {
     setContactLoading(true);
     try {
@@ -66,7 +67,7 @@ export const AppProvider = ({ children }) => {
             ...contact,
             phoneNumbers: contact.phoneNumbers.map((pn) => ({
               ...pn,
-              number: normalizePhoneNumber(pn.number),  // Normalize phone number
+              number: normalizePhoneNumber(pn.number),
             })),
           }));
 
@@ -81,50 +82,120 @@ export const AppProvider = ({ children }) => {
     }
   };
 
+  // Add SOS contact
+  const addSosContact = (contact) => {
+    setSosContacts((prev) => {
+      if (prev.length >= 5) return prev; // Limit to 5 contacts
+      return [...prev, contact];
+    });
+  };
+
+  // Reset SOS contacts
+  const resetSosContact = () => {
+    setSosContacts([]);
+  };
+
+  // Check if user is already logged in (using AsyncStorage)
   useEffect(() => {
-    // Listen for authentication state changes
+    const checkAuthState = async () => {
+      try {
+        const storedToken = await AsyncStorage.getItem('authToken');
+        if (storedToken) {
+          // Assume user is authenticated if token exists
+          const currentUser = auth.currentUser;
+          if (currentUser) {
+            setUser(currentUser);
+            fetchUserDetails();
+            fetchContacts();
+          } else {
+            console.warn('No authenticated user, even with token.');
+          }
+        }
+      } catch (error) {
+        console.error('Error retrieving auth token:', error);
+      } finally {
+        setIsInitializing(false); // Auth state has been checked
+      }
+    };
+
+    checkAuthState();
+
     const unsubscribe = onAuthStateChanged(auth, (currentUser) => {
       if (currentUser) {
-        // User is signed in, set the user and fetch user details
         setUser(currentUser);
-        fetchUserDetails(); // Fetch user details after login
-        fetchContacts(); // Fetch contacts after login
+        fetchUserDetails();
+        fetchContacts();
       } else {
-        // No user is signed in, clear the user, user details, and contacts
         setUser(null);
         setUserDetails({});
         setContacts([]);
       }
+      setIsInitializing(false); // Auth state has been checked
     });
 
-    // Cleanup the listener on unmount
     return () => unsubscribe();
   }, []);
 
-  // Sign in function
+  // Login function
   const login = async (userCredential) => {
     const user = userCredential.user;
     setUser(user);
-    await fetchUserDetails(); // Fetch user details after setting the user
-    await fetchContacts(); // Fetch contacts after setting the user
+
+    // Store token in AsyncStorage
+    try {
+      await AsyncStorage.setItem('authToken', user.uid);
+    } catch (error) {
+      console.error('Error storing auth token:', error);
+    }
+
+    await fetchUserDetails();
+    await fetchContacts();
   };
 
-  // Sign out function
+  // Logout function
   const logout = async () => {
     try {
-      await auth.signOut(); // Sign out from Firebase
+      await auth.signOut();
+      await AsyncStorage.removeItem('authToken'); // Remove token on logout
       setUser(null);
-      setUserDetails({}); // Clear user details on logout
-      setContacts([]); // Clear contacts on logout
-      navigation.navigate('Home'); // Navigate to Home screen
+      setUserDetails({});
+      setContacts([]);
+      resetSosContact();
+      navigation.navigate('Home');
     } catch (error) {
       console.error('Error signing out:', error);
     }
   };
 
+  // Render a loader during initialization
+  if (isInitializing) {
+    return (
+      <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
+        <ActivityIndicator size="large" color="#0000ff" />
+      </View>
+    );
+  }
+
   return (
-    <AppContext.Provider value={{ user, login, logout, contacts, setContacts, userDetails, loading, contactLoading, permissionStatus }}>
+    <AppContext.Provider
+      value={{
+        user,
+        login,
+        logout,
+        contacts,
+        setContacts,
+        userDetails,
+        loading,
+        contactLoading,
+        permissionStatus,
+        sosContacts,
+        addSosContact,
+        resetSosContact,
+      }}
+    >
       {children}
     </AppContext.Provider>
   );
 };
+
+export default AppProvider;
