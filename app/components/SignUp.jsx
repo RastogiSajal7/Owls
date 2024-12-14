@@ -2,7 +2,7 @@ import React, { useState } from "react";
 import { View, Text, TextInput, TouchableOpacity, StyleSheet, Alert } from "react-native";
 import { createUserWithEmailAndPassword, signInWithEmailAndPassword } from "firebase/auth";
 import { auth, db } from '../../configs/FirebaseConfig';
-import { doc, setDoc, getDoc } from 'firebase/firestore';
+import { doc, setDoc } from 'firebase/firestore';
 import { useNavigation } from "@react-navigation/native";
 import LoadingIndicator from './LoadingIndicator';
 import { useAppContext } from '../AppProvider'; // Import useAppContext hook
@@ -36,20 +36,15 @@ function SignIn({ onToggle }) {
     signInWithEmailAndPassword(auth, email, password)
       .then(async (userCredential) => {
         await login(userCredential); // Call login function from context
-
-        // Hide the loading indicator
         setLoading(false);
-        
-        // Alert and navigate
         Alert.alert("Sign-In Successful", `Welcome ${userCredential.user.email}`);
         navigation.navigate('MainPage');
       })
-      .catch((error) => {
+      .catch(() => {
         setLoading(false); // Hide the loading indicator on error
-        Alert.alert("Error", error.message);
-        console.error("Error signing in:", error);
+        Alert.alert("Error", "Failed to sign in. Please try again.");
       });
-  };  
+  };
 
   return (
     <View style={styles.container}>
@@ -102,26 +97,24 @@ function SignUp({ onToggle }) {
     }
 
     createUserWithEmailAndPassword(auth, email, password)
-    .then(async (userCredential) => {
-      const user = userCredential.user;
+      .then(async (userCredential) => {
+        const user = userCredential.user;
 
-      // Save additional data to Firestore
-      await setDoc(doc(db, "users", user.uid), {
-        name: name,
-        email: email,
-        phone: phone,
-        createdAt: new Date(),
+        // Save additional data to Firestore
+        await setDoc(doc(db, "users", user.uid), {
+          name,
+          email,
+          phone,
+          createdAt: new Date(),
+        });
+
+        await login(userCredential); // Call login function from context
+        navigation.navigate("MainPage");
+        Alert.alert("Sign-Up Successful", `Welcome ${name}`);
+      })
+      .catch(() => {
+        Alert.alert("Error", "Failed to sign up. Please try again.");
       });
-
-      await login(userCredential); // Call login function from context
-
-      navigation.navigate("MainPage");
-      Alert.alert("Sign-Up Successful", `Welcome ${name}`);
-    })
-    .catch((error) => {
-      Alert.alert("Error", error.message);
-      console.error("Error signing up:", error);
-    });
   };
 
   return (
@@ -173,7 +166,6 @@ function SignUp({ onToggle }) {
     </View>
   );
 }
-
 
 const styles = StyleSheet.create({
   container: {

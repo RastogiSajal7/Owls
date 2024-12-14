@@ -7,6 +7,7 @@ import { useNavigation } from '@react-navigation/native';
 
 const useEmergencyMessage = (userDetails) => {
   const [location, setLocation] = useState(null);
+  const [locationSubscription, setLocationSubscription] = useState(null);
   const navigation = useNavigation();
 
   useEffect(() => {
@@ -14,10 +15,18 @@ const useEmergencyMessage = (userDetails) => {
       const coords = await requestLocationWithPopup();
       if (coords) {
         setLocation(coords);
+        startTrackingLocation(); // Start tracking live location
       }
     };
     fetchLocation();
-  }, []);
+
+    // Clean up location subscription on unmount
+    return () => {
+      if (locationSubscription) {
+        locationSubscription.remove();
+      }
+    };
+  }, []); // Only run once when the component is mounted
 
   const requestLocationWithPopup = async () => {
     try {
@@ -50,14 +59,24 @@ const useEmergencyMessage = (userDetails) => {
     }
   };
 
+  const startTrackingLocation = () => {
+    const subscription = Location.watchPositionAsync(
+      { accuracy: Location.Accuracy.BestForNavigation, timeInterval: 5000, distanceInterval: 10 },
+      (newLocation) => {
+        setLocation(newLocation.coords); // Update location every 5 seconds
+      }
+    );
+    setLocationSubscription(subscription); // Store the subscription for cleanup
+  };
+
   const getOrCreateChatId = async (contactPhoneNumber) => {
     const currentUserPhoneNumber = userDetails.phone;
     const chatParticipants = [currentUserPhoneNumber, contactPhoneNumber].sort();
     const chatId = `${chatParticipants[0]}_${chatParticipants[1]}`;
-  
+
     const chatRef = collection(db, 'chats');
     const chatSnapshot = await getDocs(query(chatRef, where('__name__', '==', chatId)));
-  
+
     if (chatSnapshot.empty) {
       await setDoc(doc(db, 'chats', chatId), {
         participants: [currentUserPhoneNumber, contactPhoneNumber],
@@ -68,17 +87,16 @@ const useEmergencyMessage = (userDetails) => {
 
   const sendEmergencyMessage = async (sosContacts) => {
     try {
-      const currentLocation = await requestLocationWithPopup();
-      if (!currentLocation) return;
+      if (!location) return;
 
-      const emergencyMessage = `Emergency! I need help. Please respond immediately. I am sharing my live location: https://www.google.com/maps?q=${currentLocation.latitude},${currentLocation.longitude}`;
+      const emergencyMessage = `Emergency! I need help. Please respond immediately. I am sharing my live location: https://www.google.com/maps?q=${location.latitude},${location.longitude}`;
       navigation.navigate('Chats');
       const currentUserId = auth.currentUser.uid;
 
       for (let contact of sosContacts) {
         const contactPhoneNumber = contact.phoneNumbers[0].number;
         const chatId = await getOrCreateChatId(contactPhoneNumber);
-  
+
         if (chatId) {
           const messageData = {
             text: emergencyMessage,

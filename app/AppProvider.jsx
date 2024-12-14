@@ -22,7 +22,56 @@ const AppProvider = ({ children }) => {
   const [contactLoading, setContactLoading] = useState(true);
   const [permissionStatus, setPermissionStatus] = useState(null);
   const [sosContacts, setSosContacts] = useState([]);
-  const [isInitializing, setIsInitializing] = useState(true); // New state to track initialization
+  const [isInitializing, setIsInitializing] = useState(true);
+  const [isLoggedIn, setIsLoggedIn] = useState(false);
+
+  useEffect(() => {
+    const checkAuthState = async () => {
+      try {
+        const storedToken = await AsyncStorage.getItem('authToken');
+        if (storedToken) {
+          // Assume user is authenticated if token exists
+          const currentUser = auth.currentUser;
+          if (currentUser) {
+            setUser(currentUser);
+            setIsLoggedIn(true); // Set isLoggedIn to true
+            fetchUserDetails();
+            fetchContacts();
+          } else {
+            console.warn('No authenticated user, even with token.');
+            setIsLoggedIn(false); // Set isLoggedIn to false
+          }
+        } else {
+          setIsLoggedIn(false); // No token, user is not logged in
+        }
+      } catch (error) {
+        console.error('Error retrieving auth token:', error);
+        setIsLoggedIn(false); // Set isLoggedIn to false in case of error
+      } finally {
+        setIsInitializing(false); // Auth state has been checked
+      }
+    };
+
+    checkAuthState();
+
+    const unsubscribe = onAuthStateChanged(auth, (currentUser) => {
+      if (currentUser) {
+        setUser(currentUser);
+        setIsLoggedIn(true); // Set isLoggedIn to true
+        fetchUserDetails();
+        fetchContacts();
+      } else {
+        setUser(null);
+        setIsLoggedIn(false); // Set isLoggedIn to false
+        setUserDetails({});
+        setContacts([]);
+      }
+      setIsInitializing(false); // Auth state has been checked
+    });
+
+    return () => unsubscribe();
+  }, []);
+
 
   // Normalize phone number
   const normalizePhoneNumber = (number) => {
@@ -161,7 +210,6 @@ const AppProvider = ({ children }) => {
       setUserDetails({});
       setContacts([]);
       resetSosContact();
-      navigation.navigate('Home');
     } catch (error) {
       console.error('Error signing out:', error);
     }
@@ -191,6 +239,7 @@ const AppProvider = ({ children }) => {
         sosContacts,
         addSosContact,
         resetSosContact,
+        isLoggedIn,
       }}
     >
       {children}

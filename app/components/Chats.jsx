@@ -1,15 +1,16 @@
 import React, { useEffect, useState } from "react";
-import { View, Text, ActivityIndicator, FlatList, StyleSheet, TouchableOpacity, Image, TextInput } from "react-native";
+import { View, Text, ActivityIndicator, FlatList, StyleSheet, TouchableOpacity, TextInput } from "react-native";
 import { collection, onSnapshot, orderBy, query, limit } from "firebase/firestore";
 import { db } from "../../configs/FirebaseConfig";
 import { useAppContext } from "../AppProvider";
 import { useNavigation } from "@react-navigation/native";
 import { Ionicons } from "@expo/vector-icons";
+import { Image } from "expo-image";
 
 const Chats = () => {
   const [chats, setChats] = useState([]);
   const [loading, setLoading] = useState(false);
-  const [searchQuery, setSearchQuery] = useState(""); // For the search input
+  const [searchQuery, setSearchQuery] = useState("");
   const { userDetails, contacts } = useAppContext();
   const navigation = useNavigation();
   const currentUserPhoneNumber = userDetails.phone;
@@ -32,23 +33,27 @@ const Chats = () => {
 
   const fetchChats = () => {
     setLoading(true);
+  
+    // Listening to the `chats` collection for changes
     const unsubscribe = onSnapshot(
       collection(db, "chats"),
       (querySnapshot) => {
         const chatPromises = querySnapshot.docs.map((doc) => {
           const chatData = doc.data();
           const participants = chatData.participants || [];
-  
+    
+          // Check if the current user is part of the chat
           if (participants.includes(currentUserPhoneNumber)) {
             const participantNames = participants
               .filter((phoneNumber) => phoneNumber !== currentUserPhoneNumber)
               .map((phoneNumber) => getContactName(phoneNumber))
               .join(", ");
-  
+    
+            // Fetch the last message for this chat
             const messagesRef = collection(db, "chats", doc.id, "messages");
             const lastMessageQuery = query(messagesRef, orderBy("timestamp", "desc"), limit(1));
-  
-            // Return a promise that resolves to a chat object with the last message
+    
+            // Return a promise that resolves with the chat data and last message
             return new Promise((resolve) => {
               onSnapshot(lastMessageQuery, (messageSnapshot) => {
                 const lastMessageDoc = messageSnapshot.docs[0];
@@ -56,11 +61,10 @@ const Chats = () => {
   
                 resolve({
                   id: doc.id,
-                  ...chatData,
                   participants: chatData.participants,
                   participantNames: participantNames || "Unknown",
                   lastMessage: lastMessage.text,
-                  lastMessageTimestamp: lastMessage.timestamp || new Date(0), // Use a default timestamp if there's no message
+                  lastMessageTimestamp: lastMessage.timestamp || new Date(0),
                 });
               });
             });
@@ -70,8 +74,12 @@ const Chats = () => {
   
         // Wait for all promises to resolve
         Promise.all(chatPromises).then((results) => {
-          // Filter out any null values and sort the chats based on last message timestamp
-          const filteredChats = results.filter((chat) => chat !== null).sort((a, b) => b.lastMessageTimestamp - a.lastMessageTimestamp);
+          const filteredChats = results.filter((chat) => chat !== null);
+          
+          // Sort chats by last message timestamp
+          filteredChats.sort((a, b) => b.lastMessageTimestamp - a.lastMessageTimestamp);
+          
+          // Update state with the sorted chats
           setChats(filteredChats);
           setLoading(false);
         });
@@ -84,6 +92,7 @@ const Chats = () => {
   
     return unsubscribe;
   };
+  
   
 
   useEffect(() => {
