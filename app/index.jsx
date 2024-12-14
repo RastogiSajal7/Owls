@@ -3,7 +3,7 @@ import AppProvider from './AppProvider';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import Home from './components/Home';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
-import { SafeAreaView, StyleSheet, StatusBar } from 'react-native';
+import { StyleSheet } from 'react-native';
 import BottomNavigation from './components/BottomNavigation';
 import SignUp from './components/SignUp';
 import ChatScreen from './components/ChatScreen';
@@ -14,7 +14,6 @@ export default function Index() {
   return (
     <AppProvider>
       <GestureHandlerRootView style={styles.container}>
-        <StatusBar hidden={true} />
         <Stack.Navigator initialRouteName="Home">
           <Stack.Screen name="Home" component={Home} options={{ headerShown: false }} />
           <Stack.Screen name="SignUp" component={SignUp} options={{ headerShown: false }} />

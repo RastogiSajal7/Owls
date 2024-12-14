@@ -1,11 +1,11 @@
 import React from "react";
 import { View, Text, StyleSheet, TouchableOpacity, Image } from "react-native";
-import { useNavigation } from "@react-navigation/native";
+import { useNavigation } from "expo-router";
 import { useAppContext } from "../AppProvider";
 import LoadingIndicator from "../components/LoadingIndicator";
 
 export default function Profile({ username }) {
-  const { userDetails, loading, logout } = useAppContext();
+  const { userDetails, loading, logout, resetSosContact } = useAppContext();
   const navigation = useNavigation();
 
   if (loading) {
@@ -51,6 +51,17 @@ export default function Profile({ username }) {
             <Text style={styles.menuText}>{userDetails.email || ""}</Text>
           </View>
         </TouchableOpacity>
+
+        <TouchableOpacity style={styles.menuItem} onPress={()=> {alert('Emergency contacts resetted successfully!'), resetSosContact()}}>
+          <View style={styles.menuIcon}>
+            <Text style={styles.menuIconText}>🆘</Text>
+          </View>
+          <View style={styles.menuTextContainer}>
+            <Text style={styles.menuTextQ}>Emergency Contacts </Text>
+            <Text style={styles.menuText}>Click to reset sos contacts</Text>
+          </View>
+        </TouchableOpacity>
+
         <TouchableOpacity
           style={styles.menuItem}
           onPress={() => navigation.navigate("Notifications")}
@@ -85,7 +96,7 @@ export default function Profile({ username }) {
           </View>
         </TouchableOpacity>
 
-        <TouchableOpacity onPress={logout} style={styles.menuItem}>
+        <TouchableOpacity onPress={()=>{navigation.navigate('Home'), logout()}} style={styles.menuItem}>
           <View style={styles.menuIcon}>
             <Text style={styles.menuIconText}>🚪</Text>
           </View>
