@@ -8,7 +8,6 @@ const PanicScreen = () => {
   const { contacts, sosContacts, addSosContact, userDetails } = useAppContext();
   const { sendEmergencyMessage } = useEmergencyMessage(userDetails);
 
-  // Use useRef for Animated.Value to persist across renders
   const scale = useRef(new Animated.Value(1)).current;
 
   const handleSoSPress = () => sendEmergencyMessage(sosContacts);
@@ -57,7 +56,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     position: 'absolute',
     top: '35%',
-    left: '35%',
+    left: '30%',
   },
   sosButtonText: { fontSize: 18, color: '#fff', fontWeight: 'bold' },
 });

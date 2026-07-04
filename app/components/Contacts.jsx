@@ -28,22 +28,27 @@ const ContactsScreen = () => {
   const getOrCreateChatId = async (contact) => {
     const currentUserPhoneNumber = userDetails.phone;
     const contactPhoneNumber = contact.phoneNumbers[0].number;
-
+  
     const chatParticipants = [currentUserPhoneNumber, contactPhoneNumber].sort();
     const chatId = `${chatParticipants[0]}_${chatParticipants[1]}`;
-
-    const chatRef = collection(db, 'chats');
-    const chatSnapshot = await getDocs(query(chatRef, where('__name__', '==', chatId)));
-
-    if (!chatSnapshot.empty) {
+  
+    const chatDocRef = doc(db, 'chats', chatId);
+    const chatSnapshot = await getDoc(chatDocRef);
+  
+    if (chatSnapshot.exists()) {
       return chatId;
     } else {
-      await setDoc(doc(db, 'chats', chatId), {
+      // Add `isTyping` with default values for participants
+      await setDoc(chatDocRef, {
         participants: [currentUserPhoneNumber, contactPhoneNumber],
+        isTyping: {
+          [currentUserPhoneNumber]: false,
+          [contactPhoneNumber]: false,
+        },
       });
       return chatId;
     }
-  };
+  };  
 
   // Handle contact press
   const handleContactPress = async (contact) => {
